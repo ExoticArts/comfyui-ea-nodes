@@ -3,65 +3,102 @@
 validate_ea_nodes.py
 
 Run from repo root:
-    python ./tests/validate_ea_nodes.py
+  python ./tests/validate_ea_nodes.py
+or from inside tests:
+  python validate_ea_nodes.py
 """
 
+from __future__ import annotations
 import importlib
+import importlib.util
 import sys
 from pathlib import Path
-import types
 
-# --- CONFIG ---
+# ---- What we expect to ship right now ----
 EXPECTED_NODES = {
     "EA_TrimFrames": "EA Trim Frames",
     "EA_FilenameCombine": "EA Filename → Combine",
-    "EA_PowerLora": "EA Power LoRA",           # ⬅️ add this
+    "EA_PowerLora": "EA Power LoRA",
+    "EA_PowerLora_CLIP": "EA Power LoRA +CLIP",
+    # Add new ones here when they land, e.g.:
+    # "EA_PowerLora_WanVideo": "EA Power LoRA WanVideo",
 }
-# --------------
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
+def import_nodes_package(repo_root: Path):
+    """
+    Import the nodes package whether the repo uses:
+      - repo/nodes/__init__.py  -> import 'nodes'
+      - repo/__init__.py        -> load file via spec
+    """
+    nodes_dir = repo_root / "nodes" / "__init__.py"
+    root_init = repo_root / "__init__.py"
 
-# Mock ComfyUI-specific imports so they don't break outside of ComfyUI
-sys.modules["folder_paths"] = types.SimpleNamespace(
-    get_temp_directory=lambda: str(ROOT / "_temp"),
-    get_output_directory=lambda: str(ROOT / "_output"),
-)
+    if nodes_dir.exists():
+        # Package named 'nodes'
+        sys.path.insert(0, str(repo_root))
+        return importlib.import_module("nodes")
 
-print(f"[Validator] Checking EA Nodes package at {ROOT}")
+    if root_init.exists():
+        # Load the top-level __init__.py as a module
+        spec = importlib.util.spec_from_file_location("ea_nodes", root_init)
+        if spec is None or spec.loader is None:
+            raise RuntimeError("Could not create spec for top-level __init__.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
 
-try:
-    pkg = importlib.import_module("nodes")  # "nodes" is the package folder in repo
-except Exception as e:
-    print(f"[FAIL] Could not import package 'nodes': {e}")
-    sys.exit(1)
+    raise RuntimeError(
+        "Could not locate nodes package. Expected either 'nodes/__init__.py' "
+        "or a top-level '__init__.py' in the repository."
+    )
 
-try:
-    cls_map = pkg.NODE_CLASS_MAPPINGS
-    name_map = pkg.NODE_DISPLAY_NAME_MAPPINGS
-except AttributeError as e:
-    print(f"[FAIL] Package missing expected mappings: {e}")
-    sys.exit(1)
+def main():
+    here = Path(__file__).resolve()
+    repo_root = here.parent
+    if repo_root.name.lower() == "tests":
+        repo_root = repo_root.parent
 
-# Check for missing node keys
-missing = set(EXPECTED_NODES.keys()) - set(cls_map.keys())
-if missing:
-    print(f"[FAIL] Missing nodes: {missing}")
-else:
-    print(f"[PASS] All expected node keys found: {list(EXPECTED_NODES.keys())}")
-
-# Check display names
-for key, expected_display in EXPECTED_NODES.items():
-    actual_display = name_map.get(key)
-    if actual_display != expected_display:
-        print(f"[FAIL] Display name mismatch for {key}: '{actual_display}' != '{expected_display}'")
-    else:
-        print(f"[PASS] Display name for {key} is correct: '{actual_display}'")
-
-# Instantiate node classes
-for key, cls in cls_map.items():
     try:
-        node = cls()
-        print(f"[PASS] Instantiated node: {key} ({cls.__name__})")
+        pkg = import_nodes_package(repo_root)
     except Exception as e:
-        print(f"[FAIL] Could not instantiate node {key}: {e}")
+        print(f"[FAIL] Could not import nodes package: {e}")
+        raise
+
+    cls_map = getattr(pkg, "NODE_CLASS_MAPPINGS", {})
+    name_map = getattr(pkg, "NODE_DISPLAY_NAME_MAPPINGS", {})
+
+    if not isinstance(cls_map, dict) or not isinstance(name_map, dict):
+        print("[FAIL] Mapping dicts missing or wrong type.")
+        sys.exit(1)
+
+    print(f"[INFO] Found {len(cls_map)} node classes; {len(name_map)} display names.")
+
+    ok = True
+    for key, expected_display in EXPECTED_NODES.items():
+        if key not in cls_map:
+            print(f"[FAIL] Missing node class: {key}")
+            ok = False
+        else:
+            print(f"[PASS] Found node class: {key}")
+
+        actual_display = name_map.get(key)
+        if actual_display != expected_display:
+            print(f"[FAIL] Display mismatch for {key}: '{actual_display}' != '{expected_display}'")
+            ok = False
+        else:
+            print(f"[PASS] Display for {key} is correct: '{actual_display}'")
+
+    # Instantiate nodes to ensure they import lazily and don't crash
+    for key, cls in cls_map.items():
+        try:
+            _ = cls()
+            print(f"[PASS] Instantiated node: {key}")
+        except Exception as e:
+            print(f"[FAIL] Could not instantiate {key}: {e}")
+            ok = False
+
+    if not ok:
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
