@@ -1,24 +1,23 @@
 // web/ea_power_lora.js
-// v0.3.9 — slimmer header (less top/bottom gap), same alignment
+// v0.4.0 — DOM header row (precise spacing), same compact layout
 import { app } from "/scripts/app.js";
 import { api } from "/scripts/api.js";
 
-console.log("[EA Power LoRA] UI v0.3.9 loaded");
+console.log("[EA Power LoRA] UI v0.4.0 loaded");
 
-const GAP = 6;
+const GAP   = 6;
 const CHK_W = 20;
 const DEL_W = 20;
 const NUM_W = 68;
 const ROW_H = 28;
 
-// Header tuning: reduce height so there's less space above/below the labels
-const HEADER_H = 16;   // was 28 → slimmer
-const SHIFT_LORA = 14; // right nudge for LoRA label (kept)
-const SHIFT_NUM  = -6; // left nudge for Model/CLIP (kept)
+// header nudges to match your alignment
+const SHIFT_LORA = 14;  // push LoRA label right a bit
+const SHIFT_NUM  = -6;  // pull Model/CLIP slightly left
 
 async function getLoraList() {
   try { const r = await api.fetchApi("/models/loras"); const j = await r.json(); if (Array.isArray(j)) return j; } catch {}
-  try { const r = await api.fetchApi("/view?type=loras"); const j = await r.json(); if (Array.isArray(j)) return j.map(x=>x?.name).filter(Boolean); } catch {}
+  try { const r = await api.fetchApi("/view?type=loras"); const j = await r.json(); if (Array.isArray(j)) return j.map(x => x?.name).filter(Boolean); } catch {}
   return [];
 }
 
@@ -64,48 +63,49 @@ const twoDecimals = (v, fallback = 1.0) => {
   return Number.isFinite(n) ? n.toFixed(2) : Number(fallback).toFixed(2);
 };
 
-/* ---------- header (canvas-drawn) ---------- */
-function ensureHeaderWidget(node, clip){
-  let header = node.widgets?.find(w => w.__ea_header);
-  if (header) return header;
+/* ---------- DOM header row ---------- */
+function makeHeaderRow(clip) {
+  const header = document.createElement("div");
+  header.dataset.header = "1";
+  header.style.display = "grid";
+  header.style.gridTemplateColumns = clip
+    ? `${CHK_W}px 1fr ${NUM_W}px ${NUM_W}px ${DEL_W}px`
+    : `${CHK_W}px 1fr ${NUM_W}px ${DEL_W}px`;
+  header.style.columnGap = `${GAP}px`;
+  header.style.alignItems = "center";
+  header.style.width = "100%";
+  header.style.boxSizing = "border-box";
+  header.style.margin = "2px 0 2px 0";      // tight top/bottom spacing
 
-  header = node.addWidget("ea_header","header",null,()=>{});
-  header.__ea_header = true;
-  header.__ea_node = node;
-  header.__ea_clip = !!clip;
-  header.serialize = false;
+  const spacer = document.createElement("div"); // checkbox column spacer
+  const lora = document.createElement("div");
+  lora.textContent = "LoRA";
+  lora.style.color = "#9aa0a6";
+  lora.style.paddingLeft = `${SHIFT_LORA}px`;
 
-  // Slimmer header block; hide entirely when no rows
-  header.computeSize = (width) => {
-    const rows = header.__ea_node?.__ea_rows?.length || 0;
-    return [width, rows > 0 ? HEADER_H : 0];
-  };
+  const model = document.createElement("div");
+  model.textContent = "Model";
+  model.style.color = "#9aa0a6";
+  model.style.paddingLeft = `${Math.max(0, SHIFT_NUM)}px`; // if negative, zero for DOM
+  model.style.textAlign = "left";
 
-  header.draw = function (ctx, _node, width, y) {
-    const rows = this.__ea_node?.__ea_rows?.length || 0;
-    if (rows === 0) return;
+  header.append(spacer, lora, model);
 
-    // Grid: [CHK_W] GAP [1fr select] GAP [NUM_W Model] GAP [NUM_W CLIP?] GAP [DEL_W]
-    const leftEdgeModel  = width - (DEL_W + GAP + (this.__ea_clip ? (NUM_W + GAP) : 0) + NUM_W);
-    const leftEdgeClip   = width - (DEL_W + GAP + NUM_W);
-    const leftEdgeSelect = CHK_W + GAP;
+  if (clip) {
+    const clipLbl = document.createElement("div");
+    clipLbl.textContent = "CLIP";
+    clipLbl.style.color = "#9aa0a6";
+    clipLbl.style.paddingLeft = `${Math.max(0, SHIFT_NUM)}px`;
+    clipLbl.style.textAlign = "left";
+    header.append(clipLbl);
+  }
 
-    ctx.save();
-    ctx.font = "12px sans-serif";
-    ctx.fillStyle = "#9aa0a6";
-    ctx.textAlign = "left";
-
-    // Draw near the bottom of the slim header so it hugs the table
-    const baseline = y + HEADER_H - 2;
-    ctx.fillText("LoRA",  leftEdgeSelect + SHIFT_LORA, baseline);
-    ctx.fillText("Model", leftEdgeModel  + SHIFT_NUM,  baseline);
-    if (this.__ea_clip) ctx.fillText("CLIP", leftEdgeClip + SHIFT_NUM, baseline);
-    ctx.restore();
-  };
+  // delete column spacer
+  header.append(document.createElement("div"));
   return header;
 }
 
-/* ---------- rows ---------- */
+/* ---------- row DOM ---------- */
 function makeRow(node, list, row, clip, onChange){
   const wrap = document.createElement("div");
   wrap.style.display = "grid";
@@ -138,7 +138,7 @@ function makeRow(node, list, row, clip, onChange){
   numM.style.height = `${ROW_H}px`;
   numM.style.textAlign = "left";
   numM.style.paddingLeft = "6px";
-  numM.style.paddingRight = "12px"; // keeps text off the spinner
+  numM.style.paddingRight = "12px"; // keep away from spinner
   numM.style.boxSizing = "border-box";
   numM.value = twoDecimals(row.strength_model, 1.0);
   numM.onchange = () => onChange();
@@ -178,7 +178,7 @@ function makeRow(node, list, row, clip, onChange){
   };
 
   if (clip) wrap.append(chk, sel, numM, numC, del);
-  else wrap.append(chk, sel, numM, del);
+  else      wrap.append(chk, sel, numM, del);
   return { wrap, chk, sel, numM, numC };
 }
 
@@ -198,6 +198,7 @@ async function buildUI(node, clip){
   ensureHidden(node);
   node.__ea_rows = readRows(node, clip);
 
+  // Add button at the top
   let addBtn = node.widgets?.find(w => w.__ea_add_btn);
   if (!addBtn) {
     addBtn = node.addWidget("button", "＋ Add LoRA", null, async () => {
@@ -211,8 +212,7 @@ async function buildUI(node, clip){
     addBtn.serialize = false;
   }
 
-  const header = ensureHeaderWidget(node, clip);
-
+  // Rows container (we'll put the DOM header inside this)
   const box = node.addDOMWidget("ea_rows","ea_rows",document.createElement("div"));
   box.element.style.display = "flex";
   box.element.style.flexDirection = "column";
@@ -222,9 +222,17 @@ async function buildUI(node, clip){
   box.element.style.boxSizing = "border-box";
   attachAutoHeight(node, box);
 
+  // Build/rebuild content
   const rebuild = async () => {
     const list = await getLoraList();
     box.element.innerHTML = "";
+
+    // Header row only when we have at least one LoRA
+    if ((node.__ea_rows?.length || 0) > 0) {
+      const hdr = makeHeaderRow(clip);
+      box.element.appendChild(hdr);
+    }
+
     (node.__ea_rows || []).forEach(row => {
       const { wrap, chk, sel, numM, numC } = makeRow(node, list, row, clip, () => {
         row.enabled = chk.checked;
@@ -235,7 +243,7 @@ async function buildUI(node, clip){
       });
       box.element.appendChild(wrap);
     });
-    if (header) header.__ea_node = node; // recompute visibility/size
+
     writeRows(node, clip);
     node.setDirtyCanvas(true, true);
   };
