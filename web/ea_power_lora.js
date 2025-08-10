@@ -7,6 +7,8 @@
 import { app } from "/scripts/app.js";
 import { api } from "/scripts/api.js";
 
+console.log("[EA Power LoRA] web extension loaded");
+
 function makeRowDefaults() {
   return {
     name: "",
