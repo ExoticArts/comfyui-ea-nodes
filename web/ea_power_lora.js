@@ -3,7 +3,7 @@
 import { app } from "/scripts/app.js";
 import { api } from "/scripts/api.js";
 
-console.log("[EA Power LoRA] UI v0.4.0 loaded");
+console.log("[EA Power LoRA] UI loaded");
 
 const GAP   = 6;
 const CHK_W = 20;
@@ -12,8 +12,8 @@ const NUM_W = 68;
 const ROW_H = 28;
 
 // header nudges to match your alignment
-const SHIFT_LORA = 14;  // push LoRA label right a bit
-const SHIFT_NUM  = -6;  // pull Model/CLIP slightly left
+const SHIFT_LORA = 0;  // push LoRA label right a bit
+const SHIFT_NUM  = 0;  // pull Model/CLIP slightly left
 
 async function getLoraList() {
   try { const r = await api.fetchApi("/models/loras"); const j = await r.json(); if (Array.isArray(j)) return j; } catch {}
@@ -82,12 +82,14 @@ function makeHeaderRow(clip) {
   lora.textContent = "LoRA";
   lora.style.color = "#9aa0a6";
   lora.style.paddingLeft = `${SHIFT_LORA}px`;
+  lora.style.fontSize = "10px";
 
   const model = document.createElement("div");
-  model.textContent = "Model";
+  model.textContent = "Weight";
   model.style.color = "#9aa0a6";
   model.style.paddingLeft = `${Math.max(0, SHIFT_NUM)}px`; // if negative, zero for DOM
   model.style.textAlign = "left";
+  model.style.fontSize = "10px";
 
   header.append(spacer, lora, model);
 
@@ -97,6 +99,7 @@ function makeHeaderRow(clip) {
     clipLbl.style.color = "#9aa0a6";
     clipLbl.style.paddingLeft = `${Math.max(0, SHIFT_NUM)}px`;
     clipLbl.style.textAlign = "left";
+    clipLbl.style.fontSize = "10px";
     header.append(clipLbl);
   }
 
