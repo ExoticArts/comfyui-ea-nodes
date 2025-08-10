@@ -1,31 +1,16 @@
 # nodes/ea_power_lora.py
 import json
-from typing import List, Tuple
-
-# Comfy built-ins
-import folder_paths
-import nodes as comfy_nodes  # to reuse core LoraLoader
+from typing import List
 
 class EA_PowerLora:
-    """
-    Apply N LoRAs (in order) to a MODEL (and optional CLIP).
-    The list of LoRAs is passed as JSON from the client component (loras_json).
-    Each entry: {"name": "<filename.safetensors>", "strength_model": float, "strength_clip": float}
-    """
-
     @classmethod
     def INPUT_TYPES(cls):
-        # NOTE:
-        #  - The dynamic UI packs rows into the hidden STRING "loras_json"
-        #  - Works if CLIP is missing (WAN 2.2). If CLIP is provided, we'll apply clip strength too.
         return {
-            "required": {
-                "model": ("MODEL",),
-            },
+            "required": {"model": ("MODEL",)},
             "optional": {
                 "clip": ("CLIP",),
                 "loras_json": ("STRING", {"default": "[]", "multiline": True}),
-            }
+            },
         }
 
     RETURN_TYPES = ("MODEL", "CLIP")
@@ -45,48 +30,44 @@ class EA_PowerLora:
 
     @classmethod
     def IS_CHANGED(cls, **kwargs):
-        # Re-run when json/string changes (or model/clip changes – handled by Comfy)
         return (kwargs.get("loras_json", ""),)
 
     def apply(self, model, clip=None, loras_json="[]"):
-        # Load core LoraLoader for chaining
-        core_loader = comfy_nodes.LoraLoader()
+        # Lazy imports so CI (no torch/comfy) can still import this module
+        try:
+            from nodes import LoraLoader as CoreLoraLoader  # Comfy core
+        except Exception:
+            CoreLoraLoader = None  # CI fallback
+
+        try:
+            import folder_paths as _folder_paths
+        except Exception:
+            _folder_paths = None  # CI fallback
 
         loras = self._parse_loras_json(loras_json)
 
-        # Resolve which lora names are valid
-        available = set(folder_paths.get_filename_list("loras"))
-        # Example: "example.safetensors" items are returned; we’ll match on those
+        available = set(_folder_paths.get_filename_list("loras")) if _folder_paths else set()
 
         m, c = model, clip
+        loader = CoreLoraLoader() if CoreLoraLoader else None
 
         for item in loras:
             name = (item.get("name") or "").strip()
             if not name:
                 continue
-            if name not in available:
-                # ignore unknown names (or you can raise)
+            # If we know the available list, enforce it; otherwise (CI) allow any name.
+            if available and name not in available:
                 continue
 
             s_m = float(item.get("strength_model", 1.0))
             s_c = float(item.get("strength_clip", 1.0))
 
-            # Chain through the Comfy core loader; it handles both with/without clip
-            # NOTE: If c is None, core_loader.load_lora returns (m, None)
-            m, c = core_loader.load_lora(
-                m,
-                c,
-                name,
-                s_m,
-                s_c
-            )
+            if loader:
+                m, c = loader.load_lora(m, c, name, s_m, s_c)
+            # else: CI fallback is a no-op
 
         return (m, c)
 
 
-NODE_CLASS_MAPPINGS = {
-    "EA_PowerLora": EA_PowerLora,
-}
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "EA_PowerLora": "EA Power LoRA",
-}
+NODE_CLASS_MAPPINGS = {"EA_PowerLora": EA_PowerLora}
+NODE_DISPLAY_NAME_MAPPINGS = {"EA_PowerLora": "EA Power LoRA"}

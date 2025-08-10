@@ -1,7 +1,12 @@
 # Trim Images (Start/End + Previews) — now with FRAME_COUNT
-import torch
 
 class EA_TrimImagesStartEnd:
+    """
+    Remove frames from the start/end of an image sequence.
+    Outputs: (TRIMMED, FIRST_FRAME, LAST_FRAME, FRAME_COUNT)
+    Import-safe for CI (no torch at module import time).
+    """
+
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -14,39 +19,43 @@ class EA_TrimImagesStartEnd:
 
     # TRIMMED, FIRST_FRAME, LAST_FRAME, FRAME_COUNT
     RETURN_TYPES = ("IMAGE", "IMAGE", "IMAGE", "INT")
-    RETURN_NAMES = ("TRIMMED", "FIRST_FRAME", "LAST_FRAME", "FRAME_COUNT")
+    RETURN_NAMES = ("images", "first_frame", "last_frame", "frame_count")
     FUNCTION = "trim"
     CATEGORY = "EA / Video"
 
-    @classmethod
-    def IS_CHANGED(cls, **kwargs):
-        # force re-run when any of these change
-        return (kwargs.get("skip_first"), kwargs.get("skip_last"))
+    def trim(self, images, skip_first: int, skip_last: int):
+        # Lazy import torch inside execution so CI can import the module
+        import torch  # type: ignore
 
-    def trim(self, images, skip_first=0, skip_last=0):
-        if not isinstance(images, torch.Tensor):
-            raise ValueError("images must be a torch.Tensor")
+        # images expected shape: [N, H, W, C]
+        if images is None:
+            empty = torch.empty((0, 1, 1, 3))
+            return (empty, empty, empty, 0)
 
-        n = images.size(0)
-        start = max(0, min(skip_first, n))
-        end   = n - max(0, min(skip_last, max(0, n - start)))
+        if not torch.is_tensor(images):
+            raise TypeError("EA_TrimImagesStartEnd.trim: 'images' must be a torch tensor")
 
+        n = int(images.size(0)) if images.ndim >= 1 else 0
+        s = max(0, int(skip_first))
+        e = max(0, int(skip_last))
+
+        # Slice indices
+        start = min(s, n)
+        end = max(0, n - e)
         if end < start:
             end = start
 
         trimmed = images[start:end]
 
-        # First/last frame previews as 1-image batches (keep IMAGE type)
+        # Keep 4D shape [1,H,W,C] for previews
         if trimmed.size(0) > 0:
             first_frame = trimmed[0:1]
-            last_frame  = trimmed[-1: ]
+            last_frame  = trimmed[-1:]
         else:
-            # Return empty batches to satisfy type
-            c, h, w = images.size(-1), images.size(-2), images.size(-1)
             first_frame = images[0:0]
             last_frame  = images[0:0]
 
-        frame_count = trimmed.size(0)
+        frame_count = int(trimmed.size(0))
         return (trimmed, first_frame, last_frame, frame_count)
 
 
