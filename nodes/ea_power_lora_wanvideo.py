@@ -12,18 +12,22 @@ def _safe_float(x, default=0.0):
 
 
 class EA_PowerLora_WanVideo:
-    """Build a WANVIDLORA stack from a JSON list of rows using WanVideoWrapper.
+    """
+    Build a WANVIDLORA stack from a JSON list of rows using WanVideoWrapper.
 
-    JSON matches EA Power LoRA (non-CLIP):
-
-        { "rows": [
+    JSON shape (shared with EA_PowerLora v0.2.0):
+        {
+          "rows": [
             { "enabled": true, "name": "file.safetensors", "strength_model": 1.0 }
-        ]}
+          ]
+        }
+    Legacy compatibility: a top-level list is also accepted (["file.safetensors", ...] or
+    [{"name": "...", "strength_model": 1.0}, ...]).
 
     Inputs:
       - prev_lora (WANVIDLORA, optional): existing chain to extend
-      - blocks (SELECTEDBLOCKS, optional): block filter from Wan wrapper
-      - loras_json (STRING): json payload as above
+      - blocks (SELECTEDBLOCKS, optional): block filter from the wrapper
+      - loras_json (STRING): payload as above
 
     Output:
       - lora (WANVIDLORA): connect to WanVideo model loader or Set LoRAs
@@ -56,12 +60,26 @@ class EA_PowerLora_WanVideo:
             data = json.loads(raw or "{}")
         except Exception:
             return []
+        # v0.2.0 (preferred)
         if isinstance(data, dict) and isinstance(data.get("rows"), list):
             return data["rows"]
+        # legacy: list of dicts or names
+        if isinstance(data, list):
+            out = []
+            for it in data:
+                if isinstance(it, str):
+                    out.append({"enabled": True, "name": it, "strength_model": 1.0})
+                elif isinstance(it, dict):
+                    out.append({
+                        "enabled": it.get("enabled", True) is not False,
+                        "name": (it.get("name") or "").strip(),
+                        "strength_model": _safe_float(it.get("strength_model", 1.0), 1.0),
+                    })
+            return out
         return []
 
     def _import_wan_select(self):
-        # Lazy import; works across typical install paths
+        # Lazy import to keep CI light
         candidates = [
             "custom_nodes.ComfyUI_WanVideoWrapper.nodes",
             "ComfyUI_WanVideoWrapper.nodes",
@@ -104,7 +122,7 @@ class EA_PowerLora_WanVideo:
                 continue
 
             builder = WanVideoLoraSelect()
-            # Keep WAN defaults for low_mem_load / merge_loras by not overriding them here
+            # Preserve WAN defaults for low_mem_load / merge_loras by not overriding them
             (acc,) = builder.process(prev_lora=acc, blocks=blocks, lora=name, strength=strength)
 
         return (acc,)

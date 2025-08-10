@@ -1,11 +1,10 @@
 // web/ea_power_lora.js
-// v0.2.0 experimental — stable native UI, no legacy shapes
-// Registers UI for: EA_PowerLora, EA_PowerLora_CLIP, EA_PowerLora_WanVideo
+// v0.2.1 — shared UI for: EA_PowerLora, EA_PowerLora_CLIP, EA_PowerLora_WanVideo
 
 import { app } from "/scripts/app.js";
 import { api } from "/scripts/api.js";
 
-console.log("[EA Power LoRA] UI v0.2.0 loaded");
+console.log("[EA Power LoRA] UI v0.2.1 loaded");
 
 async function getLoraList() {
   try {
@@ -14,7 +13,6 @@ async function getLoraList() {
     if (Array.isArray(j)) return j;
   } catch {}
   try {
-    // fallback for older Comfy versions
     const r = await api.fetchApi("/view?type=loras");
     const j = await r.json();
     if (Array.isArray(j)) return j.map((x) => x?.name).filter(Boolean);
@@ -23,22 +21,30 @@ async function getLoraList() {
 }
 
 function ensureHidden(node) {
-  let widget = node.widgets?.find((w) => w.name === "loras_json");
-  if (!widget) {
-    widget = node.addWidget("text", "loras_json", "{}", () => {});
-    widget.serialize = true;
+  let w = node.widgets?.find((x) => x.name === "loras_json");
+  if (!w) {
+    w = node.addWidget("text", "loras_json", "{}", () => {});
+    w.serialize = true;
   }
-  if (!widget.__ea_hidden) {
-    widget.__ea_hidden = true;
-    widget.inputEl.style.display = "none";
-    widget.inputEl.parentElement.style.display = "none";
-    widget.hidden = true;
-    widget.computeSize = function () {
+  if (!w.__ea_hidden) {
+    w.__ea_hidden = true;
+    w.inputEl.style.display = "none";
+    w.inputEl.parentElement.style.display = "none";
+    w.hidden = true;
+    const orig = w.computeSize?.bind(w);
+    w.computeSize = function () {
       if (this.hidden) return [0, 0];
-      return this.__ea_orig_cs ? this.__ea_orig_cs.apply(this, arguments) : [0, 20];
+      return orig ? orig() : [0, 20];
     };
   }
-  return widget;
+  return w;
+}
+
+function spacer(node, h = 6) {
+  const s = node.addWidget("spacer", "", h, () => {});
+  s.computeSize = () => [0, h];
+  s.serialize = false;
+  return s;
 }
 
 function readNonClip(node) {
@@ -55,8 +61,10 @@ function readNonClip(node) {
   } catch {}
   return [];
 }
+
 function writeNonClip(node) {
   ensureHidden(node).value = JSON.stringify({ rows: node.__ea_rows || [] });
+  node.setDirtyCanvas(true, true);
 }
 
 function makeRow(node, list, row, onChange) {
@@ -92,7 +100,7 @@ function makeRow(node, list, row, onChange) {
   del.textContent = "✕";
   del.onclick = () => {
     wrap.remove();
-    node.__ea_rows = [...(node.__ea_rows || [])].filter((x) => x !== row);
+    node.__ea_rows = (node.__ea_rows || []).filter((x) => x !== row);
     writeNonClip(node);
     app.graph.setDirtyCanvas(true, true);
   };
@@ -101,47 +109,47 @@ function makeRow(node, list, row, onChange) {
   return { wrap, chk, sel, num };
 }
 
-function ensureUINonClip(node) {
-  if (node.__ea_built) return;
-  node.__ea_built = true;
+async function rebuildNonClip(node, box) {
+  const list = await getLoraList();
+  box.element.innerHTML = "";
+  (node.__ea_rows || []).forEach((row) => {
+    const { wrap, chk, sel, num } = makeRow(node, list, row, () => {
+      row.enabled = chk.checked;
+      row.name = sel.value || "";
+      row.strength_model = parseFloat(num.value || "1.0");
+      writeNonClip(node);
+    });
+    box.element.appendChild(wrap);
+  });
+  writeNonClip(node);
+}
+
+async function ensureUINonClip(node) {
+  if (!node || (node.comfyClass !== "EA_PowerLora" && node.comfyClass !== "EA_PowerLora_WanVideo")) return;
 
   ensureHidden(node);
   node.__ea_rows = readNonClip(node);
 
-  // Container
   const box = node.addDOMWidget("ea_rows", "ea_rows", document.createElement("div"));
   box.element.style.display = "flex";
   box.element.style.flexDirection = "column";
   box.element.style.gap = "6px";
 
-  const listPromise = getLoraList();
-
-  const rebuild = async () => {
-    const list = await listPromise;
-    box.element.innerHTML = "";
-    node.__ea_rows.forEach((row) => {
-      const { wrap, chk, sel, num } = makeRow(node, list, row, () => {
-        row.enabled = chk.checked;
-        row.name = sel.value || "";
-        row.strength_model = parseFloat(num.value || "1.0");
-        writeNonClip(node);
-      });
-      box.element.appendChild(wrap);
+  let addBtn = node.widgets?.find((w) => w.__ea_add_btn);
+  if (!addBtn) {
+    addBtn = node.addWidget("button", "＋ Add LoRA", null, async () => {
+      node.__ea_rows = node.__ea_rows || [];
+      node.__ea_rows.push({ enabled: true, name: "", strength_model: 1.0 });
+      await rebuildNonClip(node, box);
     });
-    writeNonClip(node);
-  };
+    addBtn.__ea_add_btn = true;
+    addBtn.serialize = false;
+  }
 
-  // Add btn
-  const addBtn = node.addWidget("button", "＋ Add LoRA", null, async () => {
-    if (!node.__ea_rows) node.__ea_rows = [];
-    node.__ea_rows.push({ enabled: true, name: "", strength_model: 1.0 });
-    await rebuild();
-  });
-  addBtn.__ea_add_btn = true;
-
-  rebuild();
+  await rebuildNonClip(node, box);
 }
 
+/* -------- CLIP variant helpers -------- */
 function readClip(node) {
   const h = ensureHidden(node);
   try {
@@ -159,33 +167,31 @@ function readClip(node) {
   } catch {}
   return { clip_enabled: true, rows: [] };
 }
+
 function writeClip(node) {
   ensureHidden(node).value = JSON.stringify({
     clip_enabled: !!node.__ea_clip_enabled,
     rows: node.__ea_rows || [],
   });
+  node.setDirtyCanvas(true, true);
 }
 
-function ensureUIClip(node) {
-  if (node.__ea_built) return;
-  node.__ea_built = true;
+async function ensureUIClip(node) {
+  if (!node || node.comfyClass !== "EA_PowerLora_CLIP") return;
 
-  ensureHidden(node);
-  const initial = readClip(node);
-  node.__ea_rows = initial.rows || [];
-  node.__ea_clip_enabled = !!initial.clip_enabled;
+  const init = readClip(node);
+  node.__ea_rows = init.rows || [];
+  node.__ea_clip_enabled = !!init.clip_enabled;
 
   const box = node.addDOMWidget("ea_rows", "ea_rows", document.createElement("div"));
   box.element.style.display = "flex";
   box.element.style.flexDirection = "column";
   box.element.style.gap = "6px";
 
-  const listPromise = getLoraList();
-
-  const rebuildClip = async () => {
-    const list = await listPromise;
+  const rebuild = async () => {
+    const list = await getLoraList();
     box.element.innerHTML = "";
-    node.__ea_rows.forEach((row) => {
+    (node.__ea_rows || []).forEach((row) => {
       const { wrap, chk, sel, num } = makeRow(node, list, row, () => {
         row.enabled = chk.checked;
         row.name = sel.value || "";
@@ -193,7 +199,6 @@ function ensureUIClip(node) {
         writeClip(node);
       });
 
-      // extra input for clip strength
       const numClip = document.createElement("input");
       numClip.type = "number";
       numClip.step = "0.05";
@@ -205,18 +210,17 @@ function ensureUIClip(node) {
         writeClip(node);
       };
 
-      wrap.insertBefore(numClip, wrap.lastChild); // before delete button
+      wrap.insertBefore(numClip, wrap.lastChild);
       box.element.appendChild(wrap);
     });
     writeClip(node);
   };
 
-  // Global CLIP toggle
   let globalClip = node.widgets?.find((w) => w.__ea_global_clip);
   if (!globalClip) {
     globalClip = node.addWidget("toggle", "Apply to CLIP", node.__ea_clip_enabled, (v) => {
       node.__ea_clip_enabled = !!v;
-      rebuildClip(node);
+      rebuild();
     });
     globalClip.__ea_global_clip = true;
     globalClip.serialize = false;
@@ -227,29 +231,33 @@ function ensureUIClip(node) {
   let addBtn = node.widgets?.find((w) => w.__ea_add_btn);
   if (!addBtn) {
     addBtn = node.addWidget("button", "＋ Add LoRA", null, async () => {
-      if (!node.__ea_rows) node.__ea_rows = [];
+      node.__ea_rows = node.__ea_rows || [];
       node.__ea_rows.push({ enabled: true, name: "", strength_model: 1.0, strength_clip: 1.0 });
-      await rebuildClip(node);
+      await rebuild();
     });
     addBtn.__ea_add_btn = true;
+    addBtn.serialize = false;
   }
 
-  rebuildClip();
+  await rebuild();
 }
 
+/* -------- register all three nodes -------- */
 app.registerExtension({
-  name: "ea.PowerLora",
+  name: "EA.PowerLora.UI",
   async beforeRegisterNodeDef(nodeType, nodeData) {
     if (nodeData?.name === "EA_PowerLora" || nodeData?.name === "EA_PowerLora_WanVideo") {
       const onNodeCreated = nodeType.prototype.onNodeCreated;
       nodeType.prototype.onNodeCreated = function () {
         const r = onNodeCreated?.apply(this, arguments);
+        ensureHidden(this);
         ensureUINonClip(this);
         return r;
       };
       const onConfigure = nodeType.prototype.onConfigure;
       nodeType.prototype.onConfigure = function (info) {
         const r = onConfigure?.apply(this, arguments);
+        ensureHidden(this);
         ensureUINonClip(this);
         return r;
       };
@@ -258,19 +266,22 @@ app.registerExtension({
       const onNodeCreated = nodeType.prototype.onNodeCreated;
       nodeType.prototype.onNodeCreated = function () {
         const r = onNodeCreated?.apply(this, arguments);
+        ensureHidden(this);
         ensureUIClip(this);
         return r;
       };
       const onConfigure = nodeType.prototype.onConfigure;
       nodeType.prototype.onConfigure = function (info) {
         const r = onConfigure?.apply(this, arguments);
+        ensureHidden(this);
         ensureUIClip(this);
         return r;
       };
     }
   },
   nodeCreated(node) {
-    if (node?.comfyClass === "EA_PowerLora" || node?.comfyClass === "EA_PowerLora_WanVideo") ensureUINonClip(node);
-    if (node?.comfyClass === "EA_PowerLora_CLIP") ensureUIClip(node);
+    if (!node) return;
+    if (node.comfyClass === "EA_PowerLora" || node.comfyClass === "EA_PowerLora_WanVideo") ensureUINonClip(node);
+    if (node.comfyClass === "EA_PowerLora_CLIP") ensureUIClip(node);
   },
 });
