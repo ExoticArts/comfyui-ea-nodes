@@ -1,9 +1,10 @@
-# EA Simple Filename → Combine (with trigger to avoid caching issues)
+# EA Filename → Combine (with trigger to avoid caching issues)
 import os
 import re
 import folder_paths
 
-class EASimpleFilename:
+
+class EA_SimpleFilenameCombine:
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -93,7 +94,7 @@ class EASimpleFilename:
         try:
             os.makedirs(folder_abs, exist_ok=True)
         except Exception as e:
-            print("[EA SimpleFilename] os.makedirs failed:", folder_abs, e)
+            print("[EA FilenameCombine] os.makedirs failed:", folder_abs, e)
 
         basename_no_ext = f"{final_stem}{suffix}"
 
@@ -112,5 +113,10 @@ class EASimpleFilename:
         return (prefix_for_combine, fullpath_stub)
 
 
-NODE_CLASS_MAPPINGS = {"EA_SimpleFilename": EASimpleFilename}
-NODE_DISPLAY_NAME_MAPPINGS = {"EA_SimpleFilename": "EA Simple Filename → Combine"}
+# Keep the internal ID stable & concise
+NODE_CLASS_MAPPINGS = {
+    "EA_FilenameCombine": EA_SimpleFilenameCombine,
+}
+NODE_DISPLAY_NAME_MAPPINGS = {
+    "EA_FilenameCombine": "EA Filename → Combine",
+}
