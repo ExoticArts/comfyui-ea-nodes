@@ -1,54 +1,119 @@
 # nodes/ea_power_lora.py
 import json
-from typing import List, Tuple, Union
+from typing import List, Tuple
 
+
+def _safe_float(x, default=0.0):
+    try:
+        f = float(x)
+        if f != f:  # NaN guard
+            return default
+        return f
+    except Exception:
+        return default
+
+
+# ---------------- EA Power LoRA (no CLIP) ----------------
 
 class EA_PowerLora:
     """
-    Apply N LoRAs (in order) to a MODEL (and optional CLIP).
+    Apply N LoRAs (in order) to MODEL only (no CLIP path).
 
-    The web UI packs state into the hidden STRING input `loras_json`.
-
-    Supported shapes (for save/backward-compat):
-
-    1) Legacy list of rows:
-        [
-            {
-                "enabled": true,
-                "name": "file.safetensors",
-                "strength_model": 1.0,
-                "strength_clip": 1.0,
-                "clip_enabled": true  # per-row (legacy)
-            },
-            ...
-        ]
-
-    2) New object with global toggle + rows:
+    loras_json (canonical v0.2.0 shape):
         {
-            "clip_enabled": true,          # global CLIP apply toggle
-            "rows": [
-                {
-                    "enabled": true,
-                    "name": "file.safetensors",
-                    "strength_model": 1.0,
-                    "strength_clip": 1.0
-                    # (per-row clip_enabled is optional / ignored if global is false)
-                }
-            ]
+          "rows": [
+            { "enabled": true, "name": "file.safetensors", "strength_model": 1.0 }
+          ]
         }
-
-    CI-safe: no heavy imports at module import time.
     """
 
     @classmethod
     def INPUT_TYPES(cls):
         return {
-            "required": {
-                "model": ("MODEL",),
-            },
+            "required": {"model": ("MODEL",)},
+            "optional": {"loras_json": ("STRING", {"default": "[]", "multiline": True})},
+        }
+
+    RETURN_TYPES = ("MODEL",)
+    RETURN_NAMES = ("model",)
+    CATEGORY = "EA / LoRA"
+    FUNCTION = "apply"
+
+    @staticmethod
+    def _parse_rows(raw: str) -> List[dict]:
+        try:
+            data = json.loads(raw or "{}")
+        except Exception:
+            return []
+        if isinstance(data, dict) and isinstance(data.get("rows"), list):
+            return data["rows"]
+        return []
+
+    @classmethod
+    def IS_CHANGED(cls, **kwargs):
+        return (kwargs.get("loras_json", ""),)
+
+    def apply(self, model, loras_json: str = "{}"):
+        # Lazy imports so CI can import without Comfy/torch
+        try:
+            from nodes import LoraLoader as CoreLoraLoader
+        except Exception:
+            CoreLoraLoader = None
+        try:
+            import folder_paths as _folder_paths
+        except Exception:
+            _folder_paths = None
+
+        rows = self._parse_rows(loras_json)
+        available = set(_folder_paths.get_filename_list("loras")) if _folder_paths else set()
+
+        m = model
+        loader = CoreLoraLoader() if CoreLoraLoader else None
+
+        for item in rows:
+            if item.get("enabled") is False:
+                continue
+            name = (item.get("name") or "").strip()
+            if not name:
+                continue
+            if available and name not in available:
+                continue
+            s_m = _safe_float(item.get("strength_model", 1.0), 1.0)
+
+            if loader:
+                # CLIP is None for this node; clip strength irrelevant (0.0)
+                m, _ = loader.load_lora(m, None, name, s_m, 0.0)
+
+        return (m,)
+
+
+# ---------------- EA Power LoRA +CLIP ----------------
+
+class EA_PowerLora_CLIP:
+    """
+    Apply N LoRAs (in order) to MODEL and optionally CLIP.
+
+    loras_json (canonical v0.2.0 shape):
+        {
+          "clip_enabled": true,
+          "rows": [
+            {
+              "enabled": true,
+              "name": "file.safetensors",
+              "strength_model": 1.0,
+              "strength_clip": 1.0
+            }
+          ]
+        }
+    """
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {"model": ("MODEL",)},
             "optional": {
                 "clip": ("CLIP",),
-                "loras_json": ("STRING", {"default": "[]", "multiline": True}),
+                "loras_json": ("STRING", {"default": "{}", "multiline": True}),
             },
         }
 
@@ -59,50 +124,32 @@ class EA_PowerLora:
 
     @staticmethod
     def _parse_payload(raw: str) -> Tuple[bool, List[dict]]:
-        """
-        Returns (global_clip_enabled, rows)
-        Accepts either a list of rows (legacy) or an object with 'rows' + 'clip_enabled'.
-        """
+        """Return (global_clip_enabled, rows)."""
         try:
-            data: Union[list, dict] = json.loads(raw or "[]")
+            data = json.loads(raw or "{}")
         except Exception:
             return True, []
-
-        # legacy: a plain list
-        if isinstance(data, list):
-            return True, data
-
-        # new: object wrapper
-        if isinstance(data, dict):
-            rows = data.get("rows", [])
-            glb = bool(data.get("clip_enabled", True))
-            if isinstance(rows, list):
-                return glb, rows
-
-        return True, []
+        if not isinstance(data, dict):
+            return True, []
+        clip_enabled = bool(data.get("clip_enabled", True))
+        rows = data.get("rows", [])
+        return clip_enabled, rows if isinstance(rows, list) else []
 
     @classmethod
     def IS_CHANGED(cls, **kwargs):
-        # Rerun when json changes; (model/clip) deps handled by Comfy
         return (kwargs.get("loras_json", ""),)
 
-    def apply(self, model, clip=None, loras_json: str = "[]"):
-        """
-        Thread the model/clip pair through Comfy's core LoraLoader for each row.
-        In CI (no Comfy/torch), it's a no-op and returns (model, clip).
-        """
-        # Lazy imports for CI-safety
+    def apply(self, model, clip=None, loras_json: str = "{}"):
         try:
             from nodes import LoraLoader as CoreLoraLoader
         except Exception:
             CoreLoraLoader = None
-
         try:
             import folder_paths as _folder_paths
         except Exception:
             _folder_paths = None
 
-        global_clip_enabled, rows = self._parse_payload(loras_json)
+        global_clip, rows = self._parse_payload(loras_json)
         available = set(_folder_paths.get_filename_list("loras")) if _folder_paths else set()
 
         m, c = model, clip
@@ -111,30 +158,32 @@ class EA_PowerLora:
         for item in rows:
             if item.get("enabled") is False:
                 continue
-
             name = (item.get("name") or "").strip()
             if not name:
                 continue
             if available and name not in available:
                 continue
 
-            s_m = float(item.get("strength_model", 1.0))
-            s_c = float(item.get("strength_clip", 1.0))
+            s_m = _safe_float(item.get("strength_model", 1.0), 1.0)
+            s_c = _safe_float(item.get("strength_clip", 1.0), 1.0)
 
-            # Global override takes precedence; legacy per-row respected otherwise
-            if not global_clip_enabled or (item.get("clip_enabled") is False):
+            if not global_clip:
                 s_c = 0.0
 
             if loader:
                 m, c = loader.load_lora(m, c, name, s_m, s_c)
-            # else: CI no-op
 
         return (m, c)
 
 
+# ---------------- mappings ----------------
+
 NODE_CLASS_MAPPINGS = {
     "EA_PowerLora": EA_PowerLora,
+    "EA_PowerLora_CLIP": EA_PowerLora_CLIP,
 }
+
 NODE_DISPLAY_NAME_MAPPINGS = {
     "EA_PowerLora": "EA Power LoRA",
+    "EA_PowerLora_CLIP": "EA Power LoRA +CLIP",
 }
