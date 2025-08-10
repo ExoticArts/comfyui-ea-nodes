@@ -1,3 +1,5 @@
+![CI](https://github.com/ExoticArts/comfyui-ea-nodes/actions/workflows/ci.yml/badge.svg)
+
 # ComfyUI EA Nodes
 Extra & experimental nodes for ComfyUI by ExoticArts.
 
