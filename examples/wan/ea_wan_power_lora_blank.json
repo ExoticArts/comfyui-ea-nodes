@@ -7,17 +7,38 @@
         "type": "CheckpointLoaderSimple",
         "pos": [60, 60],
         "size": [315, 100],
+        "flags": {},
+        "order": 0,
+        "mode": 0,
+        "properties": { "Node name": "Load Checkpoint" },
         "widgets_values": [
           "WAN_2_2.safetensors"
+        ],
+        "outputs": [
+          { "name": "MODEL", "type": "MODEL", "links": [1], "slot_index": 0 },
+          { "name": "CLIP",  "type": "CLIP",  "links": [2], "slot_index": 1 },
+          { "name": "VAE",   "type": "VAE",   "links": null, "slot_index": 2 }
         ]
       },
       {
         "id": 2,
         "type": "EA_PowerLora",
         "pos": [420, 60],
-        "size": [320, 80],
+        "size": [340, 120],
+        "flags": {},
+        "order": 1,
+        "mode": 0,
+        "properties": { "Node name": "EA Power LoRA" },
         "widgets_values": [
           "[]"
+        ],
+        "inputs": [
+          { "name": "model", "type": "MODEL", "link": 1 },
+          { "name": "clip",  "type": "CLIP",  "link": 2 }
+        ],
+        "outputs": [
+          { "name": "model", "type": "MODEL", "links": null, "slot_index": 0 },
+          { "name": "clip",  "type": "CLIP",  "links": null, "slot_index": 1 }
         ]
       }
     ],
@@ -26,6 +47,8 @@
       [2, 1, 1, 2, 1, "CLIP"]
     ],
     "groups": [],
-    "config": {}
+    "config": {},
+    "extra": {},
+    "version": 0.5
   }
   
