@@ -1,6 +1,6 @@
-# Trim Images (Start/End + Previews) — now with FRAME_COUNT
+# EA Trim Frames — removes frames from start/end and returns previews + frame count
 
-class EA_TrimImagesStartEnd:
+class EA_TrimFrames:
     """
     Remove frames from the start/end of an image sequence.
     Outputs: (TRIMMED, FIRST_FRAME, LAST_FRAME, FRAME_COUNT)
@@ -33,7 +33,7 @@ class EA_TrimImagesStartEnd:
             return (empty, empty, empty, 0)
 
         if not torch.is_tensor(images):
-            raise TypeError("EA_TrimImagesStartEnd.trim: 'images' must be a torch tensor")
+            raise TypeError("EA_TrimFrames.trim: 'images' must be a torch tensor")
 
         n = int(images.size(0)) if images.ndim >= 1 else 0
         s = max(0, int(skip_first))
@@ -60,8 +60,8 @@ class EA_TrimImagesStartEnd:
 
 
 NODE_CLASS_MAPPINGS = {
-    "EA_TrimImagesStartEnd": EA_TrimImagesStartEnd,
+    "EA_TrimFrames": EA_TrimFrames,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "EA_TrimImagesStartEnd": "Trim Images (Start/End + Previews)",
+    "EA_TrimFrames": "EA Trim Frames",
 }

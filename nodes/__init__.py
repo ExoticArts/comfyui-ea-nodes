@@ -1,41 +1,36 @@
-# comfyui-ea-nodes/__init__.py
-# Auto-discovers nodes from the local "nodes" package and re-exports mappings.
-# Keep node modules CI-safe by deferring heavy imports (torch, comfy internals) to runtime.
+# nodes/__init__.py
+# Aggregate all node modules in this folder and expose the two mapping dicts.
+# Keep each node module CI-safe (no heavy imports at import time).
 
 from importlib import import_module
 from pkgutil import iter_modules
 from pathlib import Path
 
-# Let ComfyUI know where to find our web extension(s)
-WEB_DIRECTORY = "./web"
-
 NODE_CLASS_MAPPINGS = {}
 NODE_DISPLAY_NAME_MAPPINGS = {}
 
-def _merge(dst: dict, src: dict, modname: str, attr: str):
+def _merge(dst: dict, src: dict):
     if not isinstance(src, dict):
         return
     for k, v in src.items():
-        if k in dst and dst[k] is not v:
-            # Keep the first; warn on duplicates so we spot collisions while developing
-            print(f"[EA Nodes] Warning: duplicate node key '{k}' from {modname}.{attr}; keeping the first")
-            continue
-        dst[k] = v
+        if k not in dst:
+            dst[k] = v
+        # if duplicate keys appear during dev, first one wins silently
 
-def _load_all_nodes():
-    base = Path(__file__).parent / "nodes"
-    if not base.exists():
-        return
+def _load_all():
+    base = Path(__file__).parent
     for spec in iter_modules([str(base)]):
-        if spec.name.startswith("_"):  # skip private modules
+        if spec.name.startswith("_"):
             continue
-        modname = f"{__name__}.nodes.{spec.name}"
         try:
-            mod = import_module(modname)
+            # relative import so a hyphen in the parent folder name doesn't matter
+            mod = import_module(f".{spec.name}", __name__)
         except Exception as e:
-            print(f"[EA Nodes] Skipping {modname}: {e}")
+            print(f"[EA Nodes] Skipping nodes.{spec.name}: {e}")
             continue
-        _merge(NODE_CLASS_MAPPINGS, getattr(mod, "NODE_CLASS_MAPPINGS", {}), modname, "NODE_CLASS_MAPPINGS")
-        _merge(NODE_DISPLAY_NAME_MAPPINGS, getattr(mod, "NODE_DISPLAY_NAME_MAPPINGS", {}), modname, "NODE_DISPLAY_NAME_MAPPINGS")
+        _merge(NODE_CLASS_MAPPINGS, getattr(mod, "NODE_CLASS_MAPPINGS", {}))
+        _merge(NODE_DISPLAY_NAME_MAPPINGS, getattr(mod, "NODE_DISPLAY_NAME_MAPPINGS", {}))
 
-_load_all_nodes()
+_load_all()
+
+__all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
