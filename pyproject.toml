@@ -1,6 +1,6 @@
 [project]
 name = "ea-nodes"
-version = "0.1.7"
+version = "0.1.8"
 description = "ExoticArts custom nodes for ComfyUI (EA Power LoRA, etc.)"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
