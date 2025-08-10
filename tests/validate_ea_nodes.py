@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-import importlib, sys, types
+"""validate_ea_nodes.py
+Run from repo root:
+  python ./tests/validate_ea_nodes.py
+or from inside tests:
+  python validate_ea_nodes.py
+"""
+from __future__ import annotations
+import importlib.util, sys, types
 from pathlib import Path
 
 EXPECTED_NODES = {
@@ -10,38 +17,59 @@ EXPECTED_NODES = {
     "EA_PowerLora_WanVideo": "EA Power LoRA WanVideo",
 }
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
+def import_root_init(repo_root: Path):
+    root_init = repo_root / "__init__.py"
+    if not root_init.exists():
+        raise RuntimeError(f"Top-level __init__.py not found at {root_init}")
+    spec = importlib.util.spec_from_file_location("ea_nodes_pkg", root_init)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("Could not create spec for top-level __init__.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
-# light mocks for Comfy-specific imports
-sys.modules["folder_paths"] = types.SimpleNamespace(
-    get_filename_list=lambda kind: [],
-    get_temp_directory=lambda: str(ROOT / "_tmp"),
-    get_output_directory=lambda: str(ROOT / "_out"),
-)
+def main():
+    here = Path(__file__).resolve()
+    repo_root = here.parent if here.parent.name.lower() != "tests" else here.parent.parent
+    print(f"[Validator] Importing nodes from {repo_root}")
 
-print(f"[Validator] Importing nodes from {ROOT}")
-pkg = importlib.import_module("__init__")
+    # Light mocks for Comfy-only modules
+    sys.modules.setdefault("folder_paths", types.SimpleNamespace(
+        get_filename_list=lambda kind: [],
+        get_temp_directory=lambda: str(repo_root / "_tmp"),
+        get_output_directory=lambda: str(repo_root / "_out"),
+    ))
 
-cls_map = getattr(pkg, "NODE_CLASS_MAPPINGS", {})
-name_map = getattr(pkg, "NODE_DISPLAY_NAME_MAPPINGS", {})
-
-print(f"[Info] {len(cls_map)} classes; {len(name_map)} display names")
-
-ok = True
-for k, disp in EXPECTED_NODES.items():
-    if k not in cls_map:
-        print(f"[FAIL] missing class: {k}"); ok = False
-    elif name_map.get(k) != disp:
-        print(f"[FAIL] display mismatch for {k}: '{name_map.get(k)}' != '{disp}'"); ok = False
-    else:
-        print(f"[PASS] {k} -> {disp}")
-
-for k, cls in cls_map.items():
     try:
-        cls()
-        print(f"[PASS] instantiate: {k}")
+        pkg = import_root_init(repo_root)
     except Exception as e:
-        print(f"[FAIL] instantiate {k}: {e}"); ok = False
+        print(f"[FAIL] Could not import nodes package: {e}")
+        raise
 
-sys.exit(0 if ok else 1)
+    cls_map = getattr(pkg, "NODE_CLASS_MAPPINGS", {})
+    name_map = getattr(pkg, "NODE_DISPLAY_NAME_MAPPINGS", {})
+    print(f"[Info] {len(cls_map)} classes; {len(name_map)} display names")
+
+    ok = True
+    for key, expected in EXPECTED_NODES.items():
+        if key not in cls_map:
+            print(f"[FAIL] missing class: {key}"); ok = False
+        else:
+            print(f"[PASS] found class: {key}")
+        actual_display = name_map.get(key)
+        if actual_display != expected:
+            print(f"[FAIL] display mismatch for {key}: '{actual_display}' != '{expected}'"); ok = False
+        else:
+            print(f"[PASS] display for {key}: '{expected}'")
+
+    for key, cls in cls_map.items():
+        try:
+            _ = cls()
+            print(f"[PASS] instantiate: {key}")
+        except Exception as e:
+            print(f"[FAIL] instantiate {key}: {e}"); ok = False
+
+    sys.exit(0 if ok else 1)
+
+if __name__ == "__main__":
+    main()
