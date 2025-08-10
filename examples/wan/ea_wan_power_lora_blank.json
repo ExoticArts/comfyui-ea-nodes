@@ -1,6 +1,6 @@
 {
     "last_node_id": 2,
-    "last_link_id": 2,
+    "last_link_id": 0,
     "nodes": [
       {
         "id": 1,
@@ -11,12 +11,10 @@
         "order": 0,
         "mode": 0,
         "properties": { "Node name": "Load Checkpoint" },
-        "widgets_values": [
-          "WAN_2_2.safetensors"
-        ],
+        "widgets_values": ["WAN_2_2.safetensors"],
         "outputs": [
-          { "name": "MODEL", "type": "MODEL", "links": [1], "slot_index": 0 },
-          { "name": "CLIP",  "type": "CLIP",  "links": [2], "slot_index": 1 },
+          { "name": "MODEL", "type": "MODEL", "links": null, "slot_index": 0 },
+          { "name": "CLIP",  "type": "CLIP",  "links": null, "slot_index": 1 },
           { "name": "VAE",   "type": "VAE",   "links": null, "slot_index": 2 }
         ]
       },
@@ -29,12 +27,10 @@
         "order": 1,
         "mode": 0,
         "properties": { "Node name": "EA Power LoRA" },
-        "widgets_values": [
-          "[]"
-        ],
+        "widgets_values": ["[]"],
         "inputs": [
-          { "name": "model", "type": "MODEL", "link": 1 },
-          { "name": "clip",  "type": "CLIP",  "link": 2 }
+          { "name": "model", "type": "MODEL", "link": null },
+          { "name": "clip",  "type": "CLIP",  "link": null }
         ],
         "outputs": [
           { "name": "model", "type": "MODEL", "links": null, "slot_index": 0 },
@@ -42,10 +38,7 @@
         ]
       }
     ],
-    "links": [
-      [1, 1, 0, 2, 0, "MODEL"],
-      [2, 1, 1, 2, 1, "CLIP"]
-    ],
+    "links": [],
     "groups": [],
     "config": {},
     "extra": {},
