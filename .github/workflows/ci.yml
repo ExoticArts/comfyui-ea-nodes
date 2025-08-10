@@ -17,10 +17,7 @@ on:
       - ".github/workflows/**"
       - "requirements.txt"
       - "README.md"
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  workflow_dispatch:
 
 jobs:
   validate:
@@ -31,17 +28,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Setup Python 3.10
         uses: actions/setup-python@v5
         with:
           python-version: "3.10"
+          cache: "pip"
 
-      - name: Install requirements (if any)
+      - name: Install requirements (if present)
         run: |
           if [ -f requirements.txt ] && [ -s requirements.txt ]; then
             pip install -r requirements.txt
           fi
 
       - name: Run validator
-        run: |
-          python tests/validate_ea_nodes.py
+        run: python tests/validate_ea_nodes.py
