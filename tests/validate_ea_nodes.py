@@ -15,6 +15,7 @@ import types
 EXPECTED_NODES = {
     "EA_TrimFrames": "EA Trim Frames",
     "EA_FilenameCombine": "EA Filename → Combine",
+    "EA_PowerLora": "EA Power LoRA",           # ⬅️ add this
 }
 # --------------
 
