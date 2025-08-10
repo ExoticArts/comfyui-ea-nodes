@@ -1,0 +1,35 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environment
+.venv/
+env/
+venv/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# VSCode
+.vscode/
+*.code-workspace
+
+# Python packaging
+build/
+dist/
+*.egg-info/
+
+# ComfyUI-specific
+# Don't commit large generated outputs or test media
+output/
+input/
+*.ckpt
+*.safetensors
+*.pth
+*.bin
+
+# Logs
+*.log
