@@ -1,6 +1,6 @@
 [project]
 name = "ea-nodes"
-version = "0.1.1"
+version = "0.1.2"
 description = "ExoticArts custom nodes for ComfyUI (EA Power LoRA, etc.)"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
@@ -15,7 +15,7 @@ Repository = "https://github.com/ExoticArts/comfyui-ea-nodes"
 #  Used by Comfy Registry https://registry.comfy.org
 
 [tool.comfy]
-PublisherId = "ExoticArts"
+PublisherId = "exoticarts"
 DisplayName = "comfyui-ea-nodes"
 Icon = "https://avatars.githubusercontent.com/u/225659383?v=4"
 includes = []
