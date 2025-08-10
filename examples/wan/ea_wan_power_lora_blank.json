@@ -1,0 +1,31 @@
+{
+    "last_node_id": 2,
+    "last_link_id": 2,
+    "nodes": [
+      {
+        "id": 1,
+        "type": "CheckpointLoaderSimple",
+        "pos": [60, 60],
+        "size": [315, 100],
+        "widgets_values": [
+          "WAN_2_2.safetensors"
+        ]
+      },
+      {
+        "id": 2,
+        "type": "EA_PowerLora",
+        "pos": [420, 60],
+        "size": [320, 80],
+        "widgets_values": [
+          "[]"
+        ]
+      }
+    ],
+    "links": [
+      [1, 1, 0, 2, 0, "MODEL"],
+      [2, 1, 1, 2, 1, "CLIP"]
+    ],
+    "groups": [],
+    "config": {}
+  }
+  
