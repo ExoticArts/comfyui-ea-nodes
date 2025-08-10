@@ -1,17 +1,16 @@
-# comfyui-ea-nodes/__init__.py
-# Auto-discover node modules in ./nodes and re-export their mappings.
-# Keep node modules CI-safe by deferring heavy imports to runtime.
+# Root package __init__.py
+# Autoload all node modules from ./nodes without requiring 'nodes' to be a Python package.
+# IMPORTANT: ComfyUI looks for WEB_DIRECTORY to mount our web assets.
+# DO NOT REMOVE WEB_DIRECTORY or its export from __all__ — the web UI will not load without it.
 
-from importlib import import_module
-from pkgutil import iter_modules
+from importlib.util import spec_from_file_location, module_from_spec
 from pathlib import Path
 
-# Let ComfyUI load our web extensions
-WEB_DIRECTORY = "./web"
+# --- CRITICAL FOR WEB EXTENSIONS ---
+WEB_DIRECTORY = "./web"  # <- ComfyUI scans this. Removing or renaming breaks JS UIs.
 
 NODE_CLASS_MAPPINGS = {}
 NODE_DISPLAY_NAME_MAPPINGS = {}
-
 
 def _merge(dst: dict, src: dict):
     if not isinstance(src, dict):
@@ -19,30 +18,29 @@ def _merge(dst: dict, src: dict):
     for k, v in src.items():
         if k not in dst:
             dst[k] = v
-        else:
-            # keep the first; avoids accidental collisions during dev
-            pass
+        # silently keep first value if duplicate during dev
 
-
-def _load_all_nodes():
+def _load_all():
     base = Path(__file__).parent / "nodes"
     if not base.exists():
         return
-    # Discover sibling modules under ./nodes (not packages elsewhere)
-    for spec in iter_modules([str(base)]):
-        if spec.name.startswith("_"):
+    for p in sorted(base.glob("*.py")):
+        if p.name.startswith("_"):
             continue
+        mod_name = f"ea_nodes.{p.stem}"
         try:
-            # IMPORTANT: relative import so folder name can contain a hyphen
-            mod = import_module(f".nodes.{spec.name}", __name__)
+            spec = spec_from_file_location(mod_name, p)
+            if spec is None or spec.loader is None:
+                raise RuntimeError("no loader")
+            mod = module_from_spec(spec)
+            spec.loader.exec_module(mod)
         except Exception as e:
-            print(f"[EA Nodes] Skipping nodes.{spec.name}: {e}")
+            print(f"[EA Nodes] Skipping nodes.{p.stem}: {e}")
             continue
-
         _merge(NODE_CLASS_MAPPINGS, getattr(mod, "NODE_CLASS_MAPPINGS", {}))
         _merge(NODE_DISPLAY_NAME_MAPPINGS, getattr(mod, "NODE_DISPLAY_NAME_MAPPINGS", {}))
 
+_load_all()
 
-_load_all_nodes()
-
+# --- DO NOT remove WEB_DIRECTORY from exports (see note above) ---
 __all__ = ["WEB_DIRECTORY", "NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]

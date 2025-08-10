@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""validate_ea_nodes.py
+"""
+validate_ea_nodes.py
 Run from repo root:
+  python ./validate_ea_nodes.py
+or from tests/:
   python ./tests/validate_ea_nodes.py
-or from inside tests:
-  python validate_ea_nodes.py
 """
 from __future__ import annotations
 import importlib.util, sys, types
@@ -62,6 +63,7 @@ def main():
         else:
             print(f"[PASS] display for {key}: '{expected}'")
 
+    # Ensure we can instantiate without heavy deps
     for key, cls in cls_map.items():
         try:
             _ = cls()
