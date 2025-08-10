@@ -1,6 +1,6 @@
 # Python cache
 __pycache__/
-nodes/__pycache__/
+**/__pycache__/
 *.py[cod]
 *.pyo
 *.pyd
