@@ -1,4 +1,5 @@
-![CI](https://github.com/ExoticArts/comfyui-ea-nodes/actions/workflows/ci.yml/badge.svg)
+[![CI](https://img.shields.io/github/actions/workflow/status/ExoticArts/comfyui-ea-nodes/ci.yml?branch=main&label=CI)](https://github.com/ExoticArts/comfyui-ea-nodes/actions/workflows/ci.yml)
+
 
 # ComfyUI EA Nodes
 Extra & experimental nodes for ComfyUI by ExoticArts.
