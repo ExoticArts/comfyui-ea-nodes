@@ -1,9 +1,9 @@
 // web/ea_power_lora.js
-// v0.4.3 — Add button back on top + hide header when 0 rows; robust save/load
+// v0.4.4 — dim/grayscale style for disabled rows; keep edits enabled
 import { app } from "/scripts/app.js";
 import { api } from "/scripts/api.js";
 
-console.log("[EA Power LoRA] UI v0.4.3 loaded");
+console.log("[EA Power LoRA] UI v0.4.4 loaded");
 
 const GAP=6, CHK_W=20, DEL_W=20, NUM_W=68, ROW_H=28;
 const SHIFT_LORA=0, SHIFT_NUM=0;
@@ -74,32 +74,56 @@ function makeHeaderRow(clip){
   header.append(document.createElement("div"));
   return header
 }
+
+/* ---- visual style for enabled/disabled rows (editable but “grayer” when off) ---- */
+function styleRowEnabled(wrap, enabled){
+  // overall dim + slight grayscale
+  wrap.style.opacity = enabled ? "1" : "0.65";
+  wrap.style.filter  = enabled ? "none" : "grayscale(0.4)";
+  // soften field borders/text a touch when disabled (keep legible)
+  const fields = wrap.querySelectorAll("select,input[type='number']");
+  fields.forEach(el=>{
+    el.style.backgroundColor = enabled ? "" : "rgba(255,255,255,0.04)";
+    el.style.borderColor     = enabled ? "" : "rgba(200,200,200,0.25)";
+    el.style.color           = enabled ? "" : "#bfc6d1";
+  });
+}
+
+/* ---------- row DOM ---------- */
 function makeRow(node,list,row,clip,onChange){
   const wrap=document.createElement("div");
   wrap.style.display="grid";
   wrap.style.gridTemplateColumns=clip?`${CHK_W}px 1fr ${NUM_W}px ${NUM_W}px ${DEL_W}px`:`${CHK_W}px 1fr ${NUM_W}px ${DEL_W}px`;
   wrap.style.columnGap=`${GAP}px`; wrap.style.alignItems="center"; wrap.style.width="100%"; wrap.style.boxSizing="border-box";
 
-  const chk=document.createElement("input"); chk.type="checkbox"; chk.checked=row.enabled!==false; chk.style.transform="scale(1.15)"; chk.style.transformOrigin="left center"; chk.style.height=`${ROW_H}px`; chk.onchange=()=>onChange();
-
+  const chk=document.createElement("input"); chk.type="checkbox"; chk.checked=row.enabled!==false; chk.style.transform="scale(1.15)"; chk.style.transformOrigin="left center"; chk.style.height=`${ROW_H}px`;
   const sel=document.createElement("select"); sel.style.width="100%"; sel.style.flex="1 1 auto"; sel.style.height=`${ROW_H}px`;
   (Array.isArray(list)?list:[]).forEach(n=>{const o=document.createElement("option");o.value=n;o.textContent=n;if(n===row.name)o.selected=true;sel.appendChild(o)});
-  sel.onchange=()=>onChange();
-
   const numM=document.createElement("input"); numM.type="number"; numM.step="0.05"; numM.min="-3"; numM.max="3";
   numM.style.width=`${NUM_W}px`; numM.style.height=`${ROW_H}px`; numM.style.textAlign="left"; numM.style.paddingLeft="6px"; numM.style.paddingRight="12px"; numM.style.boxSizing="border-box";
-  numM.value=twoDecimals(row.strength_model,1.0); numM.onchange=()=>onChange(); numM.onblur=()=>{numM.value=twoDecimals(numM.value,1.0)};
+  numM.value=twoDecimals(row.strength_model,1.0);
 
   let numC=null;
   if(clip){ numC=document.createElement("input"); numC.type="number"; numC.step="0.05"; numC.min="-3"; numC.max="3";
     numC.style.width=`${NUM_W}px`; numC.style.height=`${ROW_H}px`; numC.style.textAlign="left"; numC.style.paddingLeft="6px"; numC.style.paddingRight="12px"; numC.style.boxSizing="border-box";
-    numC.value=twoDecimals(row.strength_clip,1.0); numC.onchange=()=>onChange(); numC.onblur=()=>{numC.value=twoDecimals(numC.value,1.0)} }
+    numC.value=twoDecimals(row.strength_clip,1.0);
+  }
 
   const del=document.createElement("button"); del.textContent="×"; del.title="Remove";
   del.style.width=`${DEL_W}px`; del.style.height=`${DEL_W}px`; del.style.padding="0"; del.style.margin="0"; del.style.display="grid"; del.style.placeItems="center"; del.style.lineHeight="1"; del.style.fontSize="12px";
-  del.onclick=async()=>{ wrap.remove(); node.__ea_rows=(node.__ea_rows||[]).filter(x=>x!==row); writeRows(node,clip); await renderRows(node,clip) }; // rebuild so header hides at 0
+
+  // wire up events
+  chk.onchange = ()=>{ row.enabled = chk.checked; styleRowEnabled(wrap, row.enabled!==false); onChange(); };
+  sel.onchange = ()=>{ onChange(); };
+  numM.onchange= ()=>{ onChange(); }; numM.onblur=()=>{ numM.value=twoDecimals(numM.value,1.0) };
+  if(numC){ numC.onchange=()=>{ onChange() }; numC.onblur=()=>{ numC.value=twoDecimals(numC.value,1.0) } }
+  del.onclick = async ()=>{ wrap.remove(); node.__ea_rows=(node.__ea_rows||[]).filter(x=>x!==row); writeRows(node,clip); await renderRows(node,clip) };
 
   if(clip) wrap.append(chk,sel,numM,numC,del); else wrap.append(chk,sel,numM,del);
+
+  // initial visual state
+  styleRowEnabled(wrap, row.enabled!==false);
+
   return {wrap,chk,sel,numM,numC}
 }
 
@@ -141,7 +165,7 @@ function setupUI(node,clip){
 
   ensureHidden(node);
 
-  // Create button FIRST so it sits above the table
+  // Create button FIRST so it stays above the table
   let addBtn=node.widgets?.find(w=>w.__ea_add_btn);
   if(!addBtn){
     addBtn=node.addWidget("button","＋ Add LoRA",null,async()=>{
@@ -152,10 +176,7 @@ function setupUI(node,clip){
     addBtn.__ea_add_btn=true; addBtn.serialize=false;
   }
 
-  // Then ensure the DOM box exists
   ensureBox(node);
-
-  // If this node existed before (older order), fix the widget order
   ensureAddOnTop(node);
 }
 
@@ -180,7 +201,7 @@ app.registerExtension({
     nodeType.prototype.onConfigure=function(info){
       const r=onConfigure?.apply(this,arguments);
       setupUI(this,isClip);
-      ensureAddOnTop(this);          // keep button above after load
+      ensureAddOnTop(this);
       refreshFromHidden(this,isClip);
       return r;
     };
