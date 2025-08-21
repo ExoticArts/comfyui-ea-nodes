@@ -108,6 +108,14 @@ def _noise_hints(bias: float) -> Tuple[bool, bool]:
     b = _clamp(bias, 0.0, 1.0)
     return (b >= 0.65, False)
 
+def _choose_scheduler(bias: float, profile: str) -> str:
+    b = _clamp(bias, 0.0, 1.0)
+    if b < 0.55:
+        return "euler/beta"
+    if b < 0.75:
+        return "dpm++_sde/beta" if profile == "hold_high" else "dpm++_sde"
+    return "dpm++_sde"
+
 class EA_LightningMotionBias:
     @classmethod
     def INPUT_TYPES(cls):
@@ -128,8 +136,8 @@ class EA_LightningMotionBias:
             },
         }
 
-    RETURN_TYPES = ("INT","INT","STRING","FLOAT","FLOAT","BOOLEAN","BOOLEAN")
-    RETURN_NAMES  = ("steps","split_step","sigmas_str","lightning_high_weight","lightning_low_weight","add_noise_high","add_noise_low")
+    RETURN_TYPES = ("INT","INT","STRING","FLOAT","FLOAT","BOOLEAN","BOOLEAN","FLOAT","FLOAT","STRING")
+    RETURN_NAMES  = ("steps","split_step","sigmas_str","lightning_high_weight","lightning_low_weight","add_noise_high","add_noise_low","cfg_high","cfg_low","scheduler_hint")
     CATEGORY = "EA / Schedules"
     FUNCTION = "compute"
 
@@ -147,6 +155,9 @@ class EA_LightningMotionBias:
                 float(cfg["low_weight"]),
                 bool(cfg["add_noise_high"]),
                 bool(cfg["add_noise_low"]),
+                float(cfg["cfg_high"]),
+                float(cfg["cfg_low"]),
+                str(cfg["scheduler_hint"]),
             )
 
         # Custom path
@@ -164,6 +175,11 @@ class EA_LightningMotionBias:
         high_weight = _round5(base_high * (1.0 + 0.25 * bias))
         low_weight  = _round5(base_low  * (1.0 - 0.15 * bias))
 
+        # Extra outputs to match presets
+        cfg_high = max(0.75, min(1.0, 1.0 - 0.25 * bias))
+        cfg_low  = max(1.0, min(1.1, 1.0 + 0.05 * bias))
+        scheduler_hint = _choose_scheduler(bias, profile)
+
         add_noise_high, add_noise_low = _noise_hints(bias)
 
         return (
@@ -174,6 +190,9 @@ class EA_LightningMotionBias:
             float(low_weight),
             bool(add_noise_high),
             bool(add_noise_low),
+            float(_round5(cfg_high)),
+            float(_round5(cfg_low)),
+            str(scheduler_hint),
         )
 
 NODE_CLASS_MAPPINGS = {"EA_LightningMotionBias": EA_LightningMotionBias}
