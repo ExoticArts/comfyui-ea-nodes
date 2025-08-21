@@ -136,7 +136,7 @@ class EA_LightningMotionBias:
             },
         }
 
-    RETURN_TYPES = ("INT","INT","STRING","FLOAT","FLOAT","BOOLEAN","BOOLEAN","FLOAT","FLOAT","STRING")
+    RETURN_TYPES = ("INT","INT","STRING","FLOAT","FLOAT","BOOLEAN","BOOLEAN","FLOAT","FLOAT","*")
     RETURN_NAMES  = ("steps","split_step","sigmas_str","lightning_high_weight","lightning_low_weight","add_noise_high","add_noise_low","cfg_high","cfg_low","scheduler_hint")
     CATEGORY = "EA / Schedules"
     FUNCTION = "compute"
