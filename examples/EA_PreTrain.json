@@ -1,0 +1,102 @@
+{
+  "last_node_id": 20,
+  "last_link_id": 30,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "EA_ListVideos",
+      "pos": [-900, -100],
+      "size": [270, 180],
+      "properties": {
+        "Node name for S&R": "EA_ListVideos"
+      },
+      "widgets_values": [
+        "/home/exoticarts/ai/io/input/video/training/spreadass",
+        "*.mp4;*.mov;*.mkv;*.webm;*.avi",
+        true,
+        true
+      ]
+    },
+    {
+      "id": 2,
+      "type": "EA_ManifestIndex",
+      "pos": [-600, -100],
+      "size": [270, 162],
+      "properties": {
+        "Node name for S&R": "EA_ManifestIndex"
+      },
+      "widgets_values": ["[]", 0]
+    },
+    {
+      "id": 3,
+      "type": "EA_VideoLoad",
+      "pos": [-300, -100],
+      "size": [270, 360],
+      "properties": {
+        "Node name for S&R": "EA_VideoLoad"
+      },
+      "widgets_values": ["", 1, 0, true]
+    },
+    {
+      "id": 4,
+      "type": "EA_TrimWindow",
+      "pos": [0, -100],
+      "size": [270, 200],
+      "properties": {
+        "Node name for S&R": "EA_TrimWindow"
+      },
+      "widgets_values": [0, 56, true]
+    },
+    {
+      "id": 5,
+      "type": "PreviewImage",
+      "pos": [300, -100],
+      "size": [220, 420],
+      "title": "First Frame",
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      }
+    },
+    {
+      "id": 6,
+      "type": "PreviewImage",
+      "pos": [540, -100],
+      "size": [220, 420],
+      "title": "Last Frame",
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      }
+    },
+    {
+      "id": 7,
+      "type": "PreviewAnimation",
+      "pos": [780, -100],
+      "size": [823, 302],
+      "title": "Trimmed Window Preview",
+      "properties": {
+        "Node name for S&R": "PreviewAnimation"
+      },
+      "widgets_values": [16]
+    },
+    {
+      "id": 10,
+      "type": "EA_VideoSaveIdempotent",
+      "pos": [780, 250],
+      "size": [300, 300],
+      "properties": {
+        "Node name for S&R": "EA_VideoSaveIdempotent"
+      },
+      "widgets_values": {
+        "input_stem": "",
+        "fps": 16.0,
+        "output_dir": "pretrain/spreadass",
+        "suffix": "trimmed",
+        "format": "video/h264-mp4",
+        "crf": 16
+      }
+    }
+  ],
+  "groups": [],
+  "config": {},
+  "version": 0.4
+}
